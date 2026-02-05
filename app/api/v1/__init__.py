@@ -17,6 +17,7 @@ from .endpoints import (
     admin,
     contact,
     upload,
+    payments,
 )
 
 api_router = APIRouter()
@@ -103,4 +104,10 @@ api_router.include_router(
     upload.router,
     prefix="/upload",
     tags=["File Uploads"],
+)
+
+# Payments
+api_router.include_router(
+    payments.router,
+    tags=["Payments"],
 )

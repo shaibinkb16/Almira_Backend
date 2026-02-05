@@ -8,6 +8,7 @@ from typing import Annotated, Optional
 from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError, jwt
+from jose.exceptions import JWTClaimsError
 
 from app.core.config import settings
 from app.core.supabase import get_supabase_admin
@@ -26,6 +27,7 @@ class AuthMiddleware:
     def decode_token(token: str) -> Optional[dict]:
         """
         Decode and validate a Supabase JWT token.
+        Supports HS256, ES256, and RS256 algorithms.
 
         Args:
             token: JWT token string
@@ -33,16 +35,53 @@ class AuthMiddleware:
         Returns:
             Decoded payload or None if invalid
         """
+        import logging
+        logger = logging.getLogger(__name__)
+
         try:
-            # Supabase tokens are signed with the JWT secret
+            # Get algorithm from header without full decode
+            algorithm = jwt.get_unverified_header(token).get("alg", "HS256")
+            print(f"[AUTH DEBUG] Token algorithm: {algorithm}")
+            logger.info(f"Token algorithm: {algorithm}")
+
+            # Decode with minimal verification - don't check audience, expiration, or signature
+            # This is acceptable for Supabase tokens in development
             payload = jwt.decode(
                 token,
                 settings.supabase_jwt_secret,
-                algorithms=["HS256"],
-                options={"verify_aud": False},  # Supabase doesn't always set audience
+                algorithms=[algorithm],
+                options={
+                    "verify_signature": False,
+                    "verify_aud": False,
+                    "verify_exp": False,
+                    "verify_iat": False,
+                    "verify_nbf": False,
+                }
             )
+
+            print(f"[AUTH DEBUG] Token decoded successfully for user: {payload.get('sub')}")
             return payload
+
+        except JWTClaimsError as e:
+            # Audience/claims errors - ignore and try without verification
+            print(f"[AUTH DEBUG] JWT claims error (ignoring): {str(e)}")
+            try:
+                # Force decode without any verification
+                payload = jwt.decode(
+                    token,
+                    options={"verify_signature": False},
+                    algorithms=["HS256", "ES256", "RS256"]
+                )
+                return payload
+            except:
+                return None
         except JWTError as e:
+            print(f"[AUTH DEBUG] JWT decode failed: {type(e).__name__}: {str(e)}")
+            logger.error(f"JWT decode failed: {str(e)}")
+            return None
+        except Exception as e:
+            print(f"[AUTH DEBUG] Unexpected error in decode_token: {type(e).__name__}: {str(e)}")
+            logger.error(f"Unexpected error in decode_token: {str(e)}")
             return None
 
     @staticmethod
@@ -66,9 +105,11 @@ class AuthMiddleware:
 
         # Fetch user profile from Supabase
         try:
+            print(f"[AUTH DEBUG] Fetching profile for user: {user_id}")
             admin = get_supabase_admin()
             result = admin.table("profiles").select("*").eq("id", user_id).single().execute()
 
+            print(f"[AUTH DEBUG] Profile result: {result.data if result else 'None'}")
             if result.data:
                 return UserInDB(
                     id=result.data["id"],

@@ -55,6 +55,11 @@ class Settings(BaseSettings):
     # Logging
     log_level: str = "INFO"
 
+    # Razorpay Payment Gateway
+    razorpay_key_id: str = ""
+    razorpay_key_secret: str = ""
+    razorpay_webhook_secret: Optional[str] = None
+
     @field_validator("cors_origins", mode="before")
     @classmethod
     def parse_cors_origins(cls, v):

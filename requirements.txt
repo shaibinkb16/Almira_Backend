@@ -23,6 +23,9 @@ argon2-cffi==23.1.0
 # HTTP Client
 httpx==0.27.2
 
+# Payment Gateway
+razorpay==1.4.2
+
 # Database (optional - uncomment if needed)
 # asyncpg==0.29.0
 # sqlalchemy==2.0.35
